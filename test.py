@@ -1,3 +1,4 @@
+import pprint
 import threading
 import time
 import serial
@@ -20,7 +21,10 @@ def read_from_port(ser):
         reading = ser.readline().decode()
         reading = reading[:-2]
         try:
-            print(json.loads(json.dumps(reading)))
+            d = reading.replace("'", "\"")
+            d = json.loads(d)
+            pprint.pprint(d)
+            
         except json.decoder.JSONDecodeError:
             print(reading)
             print('json converting error.')

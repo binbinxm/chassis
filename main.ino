@@ -55,7 +55,7 @@ void serialEvent() {
     }
     if ((inChar == '\n' || inChar == '\r') && inputString != "") {
       bool done = task_add(2);
-      if(!done) Serial.println('Task overflow!');
+      if(!done) Serial.println("Task overflow!");
     }
   }
 }
