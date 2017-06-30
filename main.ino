@@ -20,7 +20,7 @@ volatile unsigned short tick_loop = TICK_SECONDS;
 volatile unsigned long timestamp;
 volatile unsigned long fan_speed_tmp = 0;
 volatile unsigned long fan_speed[] = {0,0,0,0};
-volatile unsigned long fan_set[] = {0x5F,0xaf,0xcf,0xff};
+volatile unsigned long fan_set[] = {0xFF,0xFF,0xFF,0xff};
 volatile float sensor_temp[] = {0.0,0.0,0.0};
 volatile unsigned long sensor_temp_stamp = 0;
 
