@@ -1,3 +1,4 @@
+#include <DHT.h>
 #include <TimerOne.h>
 #include <OneWire.h>
 #include <DallasTemperature.h>
@@ -6,7 +7,11 @@
 #define TICK_SECONDS 60
 #define FAN_MAX 3
 #define SENSOR_NUM 3
-#define ONE_WIRE_BUS 2
+#define ONE_WIRE_BUS 3
+#define DHTPIN 4     // what pin we're connected to
+#define DHTTYPE DHT22   // DHT 22  (AM2302)
+
+DHT dht(DHTPIN, DHTTYPE); //// Initialize DHT sensor for normal 16mhz Arduino
 OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature sensors(&oneWire);
 
@@ -23,15 +28,23 @@ volatile unsigned long fan_speed[] = {0,0,0,0};
 volatile unsigned long fan_set[] = {0xFF,0xFF,0xFF,0xff};
 volatile float sensor_temp[] = {0.0,0.0,0.0};
 volatile unsigned long sensor_temp_stamp = 0;
+volatile float humidity = 0;  //Stores humidity value
+volatile float temperature = 0; //Stores temperature value
 
 String inputString = "";                 // a string to hold incoming data
 
 const byte pin_onboard_led = 13;
 const byte pin_fan_pwm[] = {8,7,6};
 const byte pin_fan_int[] = {18,19,20};
+const byte gnd_0 = 2;
+const byte gnd_1 = 17;
+const byte gnd_2 = 5;
 
 void setup(void) {
     unsigned short i;
+    analogWrite(gnd_0,0);
+    analogWrite(gnd_1,0);
+    analogWrite(gnd_2,0);
     
     TCCR4B &= ~7;
     TCCR4B |= 1;
@@ -43,7 +56,7 @@ void setup(void) {
     Serial.begin(9600);
     inputString.reserve(200);
     while (!Serial);
-    
+	dht.begin();
     sensors.begin();
 }
 
@@ -56,14 +69,8 @@ void serialEvent() {
 }
 
 void tick(void) {
-    if(tick_loop < 0) tick_loop = TICK_SECONDS;
-    
-    if(tick_loop%10 == 0)    task_add(3);
-    if(tick_loop%10 == 0)    task_add(4);
-    if(tick_loop%10 == 0)    task_add(1);
-    
-    tick_loop -= 1;
-}
+	return;
+	}
 
 void loop(void) {
     unsigned short i;
@@ -83,7 +90,10 @@ void loop(void) {
             fan_speed_detect_03();
             break;
         case 4:
-            read_temp_04();
+            get_env_04();
+            break;
+        case 5:
+            set_ack_05();
             break;
         default: 
 
@@ -97,30 +107,38 @@ void cmd_02(void){
     unsigned long convert = 0;
     unsigned short i;
 
-    if(inputString.length() != 6){
+    if(inputString == "get"){
+		task_add(3);
+		task_add(4);
+		task_add(1);
         inputString = "";
         return;
     }
-
-    for(i=0;i<6;i++){
-        convert = convert << 4;
-        tmp = is_hex(inputString[i]);
-        if(tmp < 100)    convert += tmp;
-        else{
-            inputString = "";
-            return;
-        }
-    }
-    
-    inputString = "";
-    for(i=0;i<3;i++){
-        tmp = (convert & 0xff0000) >> 16;
-        convert = convert << 8;
-        fan_set[i] = tmp;
-    }
-    fan_set[i] = millis();
-
-
+    else if(inputString.length() == 10 && inputString.substring(0,4) == "set "){
+		for(i=0;i<6;i++){
+			convert = convert << 4;
+			tmp = is_hex(inputString[i+4]);
+			if(tmp < 100)    convert += tmp;
+			else{
+				inputString = "";
+				return;
+			}
+		}
+		
+		for(i=0;i<3;i++){
+			tmp = (convert & 0xff0000) >> 16;
+			convert = convert << 8;
+			fan_set[i] = tmp;
+		}
+		fan_set[i] = millis();
+		task_add(5);
+		inputString = "";
+		return;
+	}
+	else{
+		inputString = "";
+		return;
+	}
 }
 
 void fan_speed_detect_03(void){
@@ -128,9 +146,9 @@ void fan_speed_detect_03(void){
     for(i=0;i<FAN_MAX;i++){
         fan_speed_tmp = 0;
         attachInterrupt(digitalPinToInterrupt(pin_fan_int[i]), speed_counter, FALLING);
-        delay(100);
+        delay(1000);
         detachInterrupt(digitalPinToInterrupt(pin_fan_int[i]));
-        fan_speed[i] = fan_speed_tmp * 300;
+        fan_speed[i] = fan_speed_tmp * 30;
     }
     fan_speed[i] = millis();
 }
@@ -155,9 +173,24 @@ void report_01(void) {
         Serial.print(',');
     }
     Serial.print(sensor_temp_stamp);
-    Serial.println("]}");
+    Serial.print("],'temperature':");
+	Serial.print(temperature);
+	Serial.print(",'humidity':");
+	Serial.print(humidity);
+	Serial.println("}");
 }
 
+void set_ack_05(void) {
+    unsigned short i;
+    Serial.print("{'type':'set_ack','timestamp':");
+    Serial.print(millis());
+    Serial.print(",'set':[");
+    for(i=0;i<FAN_MAX+1;i++){
+        Serial.print(fan_set[i]);
+        if(i<FAN_MAX) Serial.print(',');
+    }
+    Serial.println("]}");
+}
 void speed_counter(void){
     fan_speed_tmp += 1;
 }
@@ -181,10 +214,7 @@ bool task_add(unsigned int num) {
     unsigned int i;
     for(i=0;i<TL;i++)
     {
-        if(task[i] == 0)
-        {
-            break;
-        }
+        if(task[i] == 0)	break;
     }
     if(i < TL)
     {
@@ -196,19 +226,13 @@ bool task_add(unsigned int num) {
     }
 }
 
-void read_temp_04(void){ 
+void get_env_04(void){ 
     sensors.requestTemperatures(); // Send the command to get temperatures
-    for(int i=0;i<SENSOR_NUM; i++)
-    {
-        /*
-        Serial.print("Temperature for device: ");
-        Serial.println(i,DEC);
-        Serial.print("Temp C: ");
-        Serial.println(sensors.getTempC(sensor_addr[i]));
-        */
-        sensor_temp[i] = sensors.getTempC(sensor_addr[i]);
-    }
+    for(int i=0;i<SENSOR_NUM; i++)	sensor_temp[i] = sensors.getTempC(sensor_addr[i]);
     sensor_temp_stamp = millis();
+
+	humidity = dht.readHumidity();
+	temperature = dht.readTemperature();
 }
 
 // convert a digit from character to hex
