@@ -49,6 +49,7 @@ class env(object):
                     %(tmp['temperature'], tmp['humidity'], tmp['timestamp']))
             self.logger.info('slot 0: %2.1fC, slot 1: %2.1fC, slot 2: %2.1fC'\
                     %(tmp['temp'][0] ,tmp['temp'][1], tmp['temp'][2]))
+            self.logger.info('self protect: %s' % tmp['protect'])
             self.logger.debug('fan 0: %2x, fan1: %2x, fan2: %2x'\
                     %(tmp['set'][0], tmp['set'][1], tmp['set'][2]))
             return tmp
@@ -84,8 +85,6 @@ class env(object):
             ctrl = bytes('set ' + pid0+pid1+pid2 + '\n', encoding = "utf8")
             self.ser.write(ctrl)
             tmp = self.decode(self.ser.readline().decode())
-            self.logger.info('fan pid ctrl: 0x%02x 0x%02x 0x%02x'\
-                    % (tmp['set'][0], tmp['set'][1], tmp['set'][2]))
 
     def normalization(self, num):
         num = -1 * num

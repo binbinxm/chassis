@@ -30,6 +30,8 @@ volatile float sensor_temp[] = {0.0,0.0,0.0};
 volatile unsigned long sensor_temp_stamp = 0;
 volatile float humidity = 0;  //Stores humidity value
 volatile float temperature = 0; //Stores temperature value
+volatile float max_temp = 45.0;
+bool self_protect = true;
 
 String inputString = "";                 // a string to hold incoming data
 
@@ -49,10 +51,12 @@ void setup(void) {
     TCCR4B &= ~7;
     TCCR4B |= 1;
     Timer1.initialize();
-    Timer1.attachInterrupt(tick, 1000000); // tick to run every 0.15 seconds
+    Timer1.attachInterrupt(tick, 10000000); // tick to run every 10 seconds
     
-    for(i=0;i<FAN_MAX;i++)    pinMode(pin_fan_int[i], INPUT);
-    
+    for(i=0;i<FAN_MAX;i++){
+		pinMode(pin_fan_int[i], INPUT);
+		sensors.setResolution(sensor_addr[i], 12);
+	}   
     Serial.begin(9600);
     inputString.reserve(200);
     while (!Serial);
@@ -68,14 +72,20 @@ void serialEvent() {
     }
 }
 
-void tick(void) {
+void tick(void){
+	task_add(4);
 	return;
 	}
 
 void loop(void) {
     unsigned short i;
     analogWrite(pin_onboard_led,0);
-    for(i=0;i<FAN_MAX;i++)    analogWrite(pin_fan_pwm[i],fan_set[i]);
+	if(self_protect){
+		for(i=0;i<FAN_MAX;i++)    analogWrite(pin_fan_pwm[i],0xff);
+	}
+	else{
+		for(i=0;i<FAN_MAX;i++)    analogWrite(pin_fan_pwm[i],fan_set[i]);
+	}
     
     if(task[0] == 0)    return;
 
@@ -109,7 +119,7 @@ void cmd_02(void){
 
     if(inputString == "get"){
 		task_add(3);
-		task_add(4);
+		//task_add(4);
 		task_add(1);
         inputString = "";
         return;
@@ -177,6 +187,8 @@ void report_01(void) {
 	Serial.print(temperature);
 	Serial.print(",'humidity':");
 	Serial.print(humidity);
+	Serial.print(",'protect':");
+	Serial.print(self_protect);
 	Serial.println("}");
 }
 
@@ -228,7 +240,11 @@ bool task_add(unsigned int num) {
 
 void get_env_04(void){ 
     sensors.requestTemperatures(); // Send the command to get temperatures
-    for(int i=0;i<SENSOR_NUM; i++)	sensor_temp[i] = sensors.getTempC(sensor_addr[i]);
+	self_protect = false;
+    for(int i=0;i<SENSOR_NUM; i++){
+		sensor_temp[i] = sensors.getTempC(sensor_addr[i]);
+		self_protect |= sensor_temp[i] >= max_temp;
+	}
     sensor_temp_stamp = millis();
 
 	humidity = dht.readHumidity();
