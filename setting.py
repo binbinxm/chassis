@@ -9,6 +9,6 @@ TIMEOUT= 5
 LOG_LEVEL = logging.DEBUG
 DELAY = 5
 TEMPERATURE_TARGET = 3
-URL = 'https://us.binya.me/ino'
+URL = 'https://us.binya.me/home/env'
 UPLOAD_INTERVAL = 60
 
