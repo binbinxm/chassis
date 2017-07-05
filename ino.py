@@ -90,7 +90,7 @@ class env(object):
         num = -1 * num
         if num > 1:
             num = 1
-        s = '%02x'%(num * (0xff - 0x40) + 0x40)
+        s = '%02x'%(num * (0xff - 0x60) + 0x60)
         if num < 0:
             s = '00'
         return s
