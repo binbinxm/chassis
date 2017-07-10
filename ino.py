@@ -14,7 +14,7 @@ class env(object):
             timeout=setting.TIMEOUT):
         self.ser = serial.Serial(port, baud, timeout=timeout)
         self.logger = log.setup_custom_logger(__name__)
-        self.report = {}
+        self.report = None
         self.fan0 = pid(1,1,1)
         self.fan1 = pid(1,1,1)
         self.fan2 = pid(1,1,1)
@@ -38,7 +38,7 @@ class env(object):
             return None
 
     def get_report(self, print = True):
-        self.ser.write(b'get\n')
+        #self.ser.write(b'get\n')
         tmp = self.decode(self.ser.readline().decode())
         if tmp == None:
             self.logger.error(tmp)
@@ -59,32 +59,34 @@ class env(object):
 
     def run_loop(self):
         while(True):
-            time.sleep(setting.DELAY)
             self.report = self.get_report()
-            pid0 = self.fan0.gen_u(\
-                    (setting.TEMPERATURE_TARGET\
-                    + self.report['temperature']\
-                    - self.report['temp'][0])\
-                    / (setting.TEMPERATURE_TARGET\
-                    + self.report['temperature']))
-            pid1 = self.fan1.gen_u(\
-                    (setting.TEMPERATURE_TARGET\
-                    + self.report['temperature']\
-                    - self.report['temp'][1])\
-                    / (setting.TEMPERATURE_TARGET\
-                    + self.report['temperature']))
-            pid2 = self.fan2.gen_u(\
-                    (setting.TEMPERATURE_TARGET\
-                    + self.report['temperature']\
-                    - self.report['temp'][2])\
-                    / (setting.TEMPERATURE_TARGET\
-                    + self.report['temperature']))
-            pid0 = self.normalization(pid0)
-            pid1 = self.normalization(pid1)
-            pid2 = self.normalization(pid2)
-            ctrl = bytes('set ' + pid0+pid1+pid2 + '\n', encoding = "utf8")
-            self.ser.write(ctrl)
-            tmp = self.decode(self.ser.readline().decode())
+            if(self.report != None):
+                pid0 = self.fan0.gen_u(\
+                        (setting.TEMPERATURE_TARGET\
+                        + self.report['temperature']\
+                        - self.report['temp'][0])\
+                        / (setting.TEMPERATURE_TARGET\
+                        + self.report['temperature']))
+                pid1 = self.fan1.gen_u(\
+                        (setting.TEMPERATURE_TARGET\
+                        + self.report['temperature']\
+                        - self.report['temp'][1])\
+                        / (setting.TEMPERATURE_TARGET\
+                        + self.report['temperature']))
+                pid2 = self.fan2.gen_u(\
+                        (setting.TEMPERATURE_TARGET\
+                        + self.report['temperature']\
+                        - self.report['temp'][2])\
+                        / (setting.TEMPERATURE_TARGET\
+                        + self.report['temperature']))
+                pid0 = self.normalization(pid0)
+                pid1 = self.normalization(pid1)
+                pid2 = self.normalization(pid2)
+                ctrl = bytes('set ' + pid0+pid1+pid2 + '\n', encoding = "utf8")
+                self.ser.write(ctrl)
+                tmp = self.decode(self.ser.readline().decode())
+            else:
+                self.logger.error('self.report == None')
 
     def normalization(self, num):
         num = -1 * num

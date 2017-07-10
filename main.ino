@@ -73,7 +73,9 @@ void serialEvent() {
 }
 
 void tick(void){
-	task_add(4);
+	task_add(3);//get speed
+	task_add(4);//get env
+	task_add(1);//send report
 	return;
 	}
 
